@@ -20,7 +20,7 @@ Get-Content docs\github-issues-bulk.ps1 | при необходимости от
 | `andrey` | `F9A825` | Зона ответственности Андрея |
 | `joint` | `6E5494` | Совместная задача |
 | `mentor` | `CCCCCC` | Только наставник |
-| `week-0` … `week-4` | любые | Спринт |
+| `week-0` … `week-4` | любые | Спринт (W3 — см. также `issues-week-3.md`) |
 | `P0` / `P1` / `P2` | red/orange/green | Приоритет |
 | `blocked` | `B60205` | Ждёт другую задачу |
 

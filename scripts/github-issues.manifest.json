@@ -1,0 +1,146 @@
+[
+  {
+    "title": "M-01: GitHub — labels, milestones, branch protection",
+    "labels": ["mentor", "week-0", "P0"],
+    "milestone": "W0 — Подготовка",
+    "bodyFile": "issue-bodies/M-01.md"
+  },
+  {
+    "title": "J-00: Онбординг — окружение и Swagger",
+    "labels": ["joint", "week-0", "kirill", "andrey", "P0"],
+    "milestone": "W0 — Подготовка",
+    "bodyFile": "issue-bodies/J-00.md"
+  },
+  {
+    "title": "K-W1-01: Customers — поиск, валидация, тесты",
+    "labels": ["kirill", "week-1", "P0"],
+    "milestone": "W1 — Справочники",
+    "bodyFile": "issue-bodies/K-W1-01.md"
+  },
+  {
+    "title": "A-W1-01: Parts — Pydantic-схемы",
+    "labels": ["andrey", "week-1", "P0"],
+    "milestone": "W1 — Справочники",
+    "bodyFile": "issue-bodies/A-W1-01.md"
+  },
+  {
+    "title": "A-W1-02: Parts — CRUD API + catalog_service",
+    "labels": ["andrey", "week-1", "P0"],
+    "milestone": "W1 — Справочники",
+    "bodyFile": "issue-bodies/A-W1-02.md"
+  },
+  {
+    "title": "A-W1-04: BOM templates — CRUD + items + preview",
+    "labels": ["andrey", "week-1", "P0"],
+    "milestone": "W1 — Справочники",
+    "bodyFile": "issue-bodies/A-W1-04.md"
+  },
+  {
+    "title": "K-W1-02: Ревью PR Андрея (parts + BOM)",
+    "labels": ["kirill", "week-1", "P2"],
+    "milestone": "W1 — Справочники",
+    "bodyFile": "issue-bodies/K-W1-02.md"
+  },
+  {
+    "title": "A-W1-05: Ревью PR Кирилла (customers)",
+    "labels": ["andrey", "week-1", "P2"],
+    "milestone": "W1 — Справочники",
+    "bodyFile": "issue-bodies/A-W1-05.md"
+  },
+  {
+    "title": "K-W2-03: order_service + CRUD заказов",
+    "labels": ["kirill", "week-2", "P0"],
+    "milestone": "W2 — Заказы и BOM",
+    "bodyFile": "issue-bodies/K-W2-03.md"
+  },
+  {
+    "title": "K-W2-06: apply-template — позиции из BOM",
+    "labels": ["kirill", "week-2", "P0"],
+    "milestone": "W2 — Заказы и BOM",
+    "bodyFile": "issue-bodies/K-W2-06.md"
+  },
+  {
+    "title": "A-W2-01: procurement_service — матрица переходов",
+    "labels": ["andrey", "week-2", "P0"],
+    "milestone": "W2 — Заказы и BOM",
+    "bodyFile": "issue-bodies/A-W2-01.md"
+  },
+  {
+    "title": "A-W2-02: PATCH procurement + RBAC",
+    "labels": ["andrey", "week-2", "P0"],
+    "milestone": "W2 — Заказы и BOM",
+    "bodyFile": "issue-bodies/A-W2-02.md"
+  },
+  {
+    "title": "A-W2-03: seed_demo_data.py",
+    "labels": ["andrey", "week-2", "P0"],
+    "milestone": "W2 — Заказы и BOM",
+    "bodyFile": "issue-bodies/A-W2-03.md"
+  },
+  {
+    "title": "K-W3-01: reporting_service — deadlines и overdue",
+    "labels": ["kirill", "week-3", "P0"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/K-W3-01.md"
+  },
+  {
+    "title": "K-W3-02: GET /orders?overdue=true",
+    "labels": ["kirill", "week-3", "P0"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/K-W3-02.md"
+  },
+  {
+    "title": "K-W3-03: procurement-summary по заказу",
+    "labels": ["kirill", "week-3", "P0"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/K-W3-03.md"
+  },
+  {
+    "title": "J-W3-01: Авто-статус заказа in_procurement",
+    "labels": ["joint", "kirill", "andrey", "week-3", "P0"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/J-W3-01.md"
+  },
+  {
+    "title": "A-W3-01: GET /orders/{id}/lines с sku и name запчасти",
+    "labels": ["andrey", "week-3", "P0"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/A-W3-01.md"
+  },
+  {
+    "title": "K-W3-04: completed — когда все позиции received/cancelled",
+    "labels": ["kirill", "week-3", "P2"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/K-W3-04.md"
+  },
+  {
+    "title": "A-W3-02: Bulk PATCH procurement (до 50 линий)",
+    "labels": ["andrey", "week-3", "P1"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/A-W3-02.md"
+  },
+  {
+    "title": "A-W3-03: POST /parts/import CSV",
+    "labels": ["andrey", "week-3", "P2"],
+    "milestone": "W3 — Закупка и сроки",
+    "bodyFile": "issue-bodies/A-W3-03.md"
+  },
+  {
+    "title": "J-W4-01: Чеклист приёмки MVP",
+    "labels": ["joint", "kirill", "andrey", "week-4", "P0"],
+    "milestone": "W4 — Релиз MVP",
+    "bodyFile": "issue-bodies/J-W4-01.md"
+  },
+  {
+    "title": "K-W4-01: docs/api.md — примеры curl",
+    "labels": ["kirill", "week-4", "P0"],
+    "milestone": "W4 — Релиз MVP",
+    "bodyFile": "issue-bodies/K-W4-01.md"
+  },
+  {
+    "title": "A-W4-01: demo_walkthrough.py (httpx e2e)",
+    "labels": ["andrey", "week-4", "P0"],
+    "milestone": "W4 — Релиз MVP",
+    "bodyFile": "issue-bodies/A-W4-01.md"
+  }
+]

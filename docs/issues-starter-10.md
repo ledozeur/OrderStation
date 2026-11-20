@@ -1,9 +1,12 @@
 # 10 стартовых issues (создать вручную на GitHub)
 
-Репозиторий: https://github.com/ledozeur/OrderStation/issues/new  
+**CLI:** `.\scripts\create-github-issues.ps1 -Week all` (см. README).  
+Ручное создание: https://github.com/ledozeur/OrderStation/issues/new  
 
-**Сначала** создайте labels: `kirill`, `andrey`, `joint`, `mentor`, `week-0`, `week-1`, `week-2`, `week-4`, `P0`, `P1`  
-**Milestones:** `W0 — Подготовка`, `W1 — Справочники`, `W2 — Заказы и BOM`, `W4 — Релиз MVP`  
+**Сначала** создайте labels: `kirill`, `andrey`, `joint`, `mentor`, `week-0` … `week-4`, `P0`, `P1`, `P2`  
+**Milestones:** `W0 — Подготовка`, `W1 — Справочники`, `W2 — Заказы и BOM`, **`W3 — Закупка и сроки`**, `W4 — Релиз MVP`  
+
+**Week 3** в стартовой десятке не входила — готовые issues: **[issues-week-3.md](issues-week-3.md)** (6 обязательных + 2 optional).  
 
 Assignee: назначайте сами.  
 Полный бэклог: [GITHUB_ISSUES.md](GITHUB_ISSUES.md).
@@ -249,4 +252,8 @@ GET/POST/PATCH `/orders`, фильтры status/customer_id, только draft 
 | 2+ | PR #3, ревью Андрея | PR #5/#6, ревью Кирилла |
 | Неделя 2 | #7, #8 | #9 + seed (см. GITHUB_ISSUES #20) |
 
-После W1 добавляйте остальные issues из **GITHUB_ISSUES.md** по мере прогресса.
+| Неделя | Файл |
+|--------|------|
+| W0–W2, W4 | этот файл (10 шт.) |
+| **W3** | [issues-week-3.md](issues-week-3.md) |
+| Весь месяц | [GITHUB_ISSUES.md](GITHUB_ISSUES.md) |
