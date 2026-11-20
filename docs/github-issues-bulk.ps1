@@ -5,6 +5,15 @@
 $ErrorActionPreference = "Stop"
 $Repo = (gh repo view --json nameWithOwner -q .nameWithOwner)
 
+# gh пишет «already exists» в stderr → в PowerShell это NativeCommandError при Stop
+function Invoke-GhBestEffort {
+    param([Parameter(Mandatory)][string[]]$GhArgs)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & gh @GhArgs 2>&1 | Out-Null
+    $ErrorActionPreference = $prev
+}
+
 function New-GhIssue {
     param(
         [string]$Title,
@@ -23,14 +32,24 @@ function New-GhIssue {
     & gh @args
 }
 
-# Labels (игнорировать ошибку если уже есть)
-$labels = @(
-    "kirill","andrey","joint","mentor",
-    "week-0","week-1","week-2","week-3","week-4",
-    "P0","P1","P2","blocked"
+# Labels (идемпотентно: пропуск если уже есть)
+$labelDefs = @(
+    @{ name = "kirill"; color = "1D76DB" },
+    @{ name = "andrey"; color = "F9A825" },
+    @{ name = "joint"; color = "6E5494" },
+    @{ name = "mentor"; color = "CCCCCC" },
+    @{ name = "week-0"; color = "C5DEF5" },
+    @{ name = "week-1"; color = "C5DEF5" },
+    @{ name = "week-2"; color = "C5DEF5" },
+    @{ name = "week-3"; color = "C5DEF5" },
+    @{ name = "week-4"; color = "C5DEF5" },
+    @{ name = "P0"; color = "B60205" },
+    @{ name = "P1"; color = "D93F0B" },
+    @{ name = "P2"; color = "0E8A16" },
+    @{ name = "blocked"; color = "B60205" }
 )
-foreach ($l in $labels) {
-    gh label create $l 2>$null
+foreach ($ld in $labelDefs) {
+    Invoke-GhBestEffort -GhArgs @("label", "create", $ld.name, "--color", $ld.color, "--force")
 }
 
 # Milestones
@@ -42,7 +61,11 @@ $milestones = @(
     @{ name = "W4 — Релиз MVP"; desc = "Неделя 4" }
 )
 foreach ($m in $milestones) {
-    gh api -X POST "repos/$Repo/milestones" -f title=$m.name -f description=$m.desc 2>$null
+    Invoke-GhBestEffort -GhArgs @(
+        "api", "-X", "POST", "repos/$Repo/milestones",
+        "-f", "title=$($m.name)",
+        "-f", "description=$($m.desc)"
+    )
 }
 
 $tmpdir = Join-Path $env:TEMP "orderstation-issues"
