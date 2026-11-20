@@ -49,7 +49,9 @@ Backend (REST API) для учёта заказов БПЛА: заказчики
 | Файл | Для кого | Содержание |
 |------|----------|------------|
 | [docs/TZ.md](docs/TZ.md) | все | ТЗ MVP, критерии приёмки, план по неделям |
-| [docs/GITHUB_ISSUES.md](docs/GITHUB_ISSUES.md) | все | Готовые тексты issues для GitHub |
+| [docs/GITHUB_ISSUES.md](docs/GITHUB_ISSUES.md) | все | Полный бэклог issues (40 шт.) |
+| [docs/issues-starter-10.md](docs/issues-starter-10.md) | наставник | **10 issues для ручного создания** на старте |
+| [docs/kickoff-message.md](docs/kickoff-message.md) | наставник | Текст для чата практикантам |
 | [docs/onboarding.md](docs/onboarding.md) | Кирилл, Андрей | Первый день, git-процесс, таблица файлов |
 | [docs/MENTOR.md](docs/MENTOR.md) | наставник | Как проверять PR без погружения в Python |
 
