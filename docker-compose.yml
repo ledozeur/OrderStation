@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orderstation
+      POSTGRES_PASSWORD: orderstation
+      POSTGRES_DB: orderstation
+    ports:
+      - "5432:5432"
+    volumes:
+      - orderstation_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderstation -d orderstation"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  orderstation_pg:
