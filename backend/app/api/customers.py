@@ -20,9 +20,7 @@ async def list_customers(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[Customer]:
-    result = await db.execute(
-        select(Customer).order_by(Customer.name).offset(offset).limit(limit)
-    )
+    result = await db.execute(select(Customer).order_by(Customer.name).offset(offset).limit(limit))
     return list(result.scalars().all())
 
 

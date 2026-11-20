@@ -1,4 +1,5 @@
 """Создаёт пользователя admin@local / admin если его ещё нет."""
+
 import asyncio
 import sys
 from pathlib import Path

@@ -33,7 +33,9 @@ async def session_factory() -> AsyncGenerator[async_sessionmaker[AsyncSession], 
 
 
 @pytest_asyncio.fixture
-async def client(session_factory: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncClient, None]:
+async def client(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncGenerator[AsyncClient, None]:
     async with session_factory() as session:
         session.add(
             User(

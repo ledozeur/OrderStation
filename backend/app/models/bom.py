@@ -1,7 +1,17 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, Uuid, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,9 +26,7 @@ class BomTemplate(Base):
     product_line: Mapped[str | None] = mapped_column(String(128), nullable=True)
     version: Mapped[str] = mapped_column(String(32), default="1.0")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     items: Mapped[list["BomTemplateItem"]] = relationship(
         back_populates="template", cascade="all, delete-orphan"

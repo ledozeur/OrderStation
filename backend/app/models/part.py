@@ -16,6 +16,4 @@ class Part(Base):
     unit: Mapped[str] = mapped_column(String(32), default="шт")
     category: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

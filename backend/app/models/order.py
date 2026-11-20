@@ -8,12 +8,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
-class OrderType(str, enum.Enum):
+class OrderType(enum.StrEnum):
     standard = "standard"
     custom = "custom"
 
 
-class OrderStatus(str, enum.Enum):
+class OrderStatus(enum.StrEnum):
     draft = "draft"
     confirmed = "confirmed"
     in_procurement = "in_procurement"
@@ -21,12 +21,12 @@ class OrderStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
-class OrderLineSource(str, enum.Enum):
+class OrderLineSource(enum.StrEnum):
     template = "template"
     manual = "manual"
 
 
-class ProcurementStatus(str, enum.Enum):
+class ProcurementStatus(enum.StrEnum):
     not_ordered = "not_ordered"
     ordered = "ordered"
     in_transit = "in_transit"
@@ -49,9 +49,7 @@ class Order(Base):
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.draft)
     deadline_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     lines: Mapped[list["OrderLine"]] = relationship(
