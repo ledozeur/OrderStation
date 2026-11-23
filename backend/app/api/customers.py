@@ -12,12 +12,12 @@ from app.schemas.customer import CustomerCreate, CustomerRead, CustomerUpdate
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
-# символ, которым экранируются служебные знаки LIKE (%, _) в строке поиска
+# Символ, которым экранируются служебные знаки LIKE (%, _) в строке поиска.
 LIKE_ESCAPE = "/"
 
 
 def _like_pattern(text: str) -> str:
-    """шаблон «содержит подстроку» для LIKE: %, _ и сам символ экранирования ищутся буквально"""
+    """Шаблон «содержит подстроку» для LIKE: %, _ и сам символ экранирования ищутся буквально."""
     escaped = text.replace("/", "//").replace("%", "/%").replace("_", "/_")
     return f"%{escaped}%"
 
@@ -25,9 +25,9 @@ def _like_pattern(text: str) -> str:
 @router.get(
     "",
     response_model=list[CustomerRead],
-    summary="список заказчиков",
+    summary="Список заказчиков",
     description=(
-        "возвращает заказчиков постранично. поддерживает поиск по названию (`q`) "
+        "Возвращает заказчиков постранично. Поддерживает поиск по названию (`q`) "
         "и сортировку по названию (`sort`)."
     ),
 )
@@ -78,7 +78,7 @@ async def list_customers(
     "",
     response_model=CustomerRead,
     status_code=status.HTTP_201_CREATED,
-    summary="создать заказчика",
+    summary="Создать заказчика",
 )
 async def create_customer(
     _: Annotated[object, Depends(require_roles("manager"))],
@@ -92,7 +92,7 @@ async def create_customer(
     return customer
 
 
-@router.get("/{customer_id}", response_model=CustomerRead, summary="получить заказчика по ID")
+@router.get("/{customer_id}", response_model=CustomerRead, summary="Получить заказчика по ID")
 async def get_customer(
     _: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -100,11 +100,11 @@ async def get_customer(
 ) -> Customer:
     customer = await db.get(Customer, customer_id)
     if customer is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="заказчик не найден")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Заказчик не найден")
     return customer
 
 
-@router.patch("/{customer_id}", response_model=CustomerRead, summary="обновить заказчика")
+@router.patch("/{customer_id}", response_model=CustomerRead, summary="Обновить заказчика")
 async def update_customer(
     _: Annotated[object, Depends(require_roles("manager"))],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -113,7 +113,7 @@ async def update_customer(
 ) -> Customer:
     customer = await db.get(Customer, customer_id)
     if customer is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="заказчик не найден")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Заказчик не найден")
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(customer, key, value)
     await db.flush()
@@ -122,7 +122,7 @@ async def update_customer(
 
 
 @router.delete(
-    "/{customer_id}", status_code=status.HTTP_204_NO_CONTENT, summary="удалить заказчика"
+    "/{customer_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить заказчика"
 )
 async def delete_customer(
     _: Annotated[object, Depends(require_roles("manager"))],
@@ -131,5 +131,5 @@ async def delete_customer(
 ) -> None:
     customer = await db.get(Customer, customer_id)
     if customer is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="заказчик не найден")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Заказчик не найден")
     await db.delete(customer)

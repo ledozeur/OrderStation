@@ -14,7 +14,7 @@ URL = "/api/v1/customers"
 async def create_customer(
     client: AsyncClient, headers: dict[str, str], name: str, **extra: str
 ) -> dict:
-    """создаёт заказчика и возвращает JSON ответа (проверяя, что вернулся 201)"""
+    """Создаёт заказчика и возвращает JSON ответа (проверяя, что вернулся 201)."""
     response = await client.post(URL, headers=headers, json={"name": name, **extra})
     assert response.status_code == 201, response.text
     return response.json()
@@ -30,7 +30,7 @@ async def list_names(client: AsyncClient, headers: dict[str, str], query: str = 
 async def viewer_headers(
     client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
 ) -> dict[str, str]:
-    """заголовки авторизации пользователя с ролью viewer (read only)"""
+    """Заголовки авторизации пользователя с ролью viewer (только чтение)."""
     async with session_factory() as session:
         session.add(
             User(
@@ -50,7 +50,7 @@ async def viewer_headers(
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-# --- создание, чтение, обновление, удаление ---------------------------------------------
+# --- Создание, чтение, обновление, удаление ---------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -83,7 +83,7 @@ async def test_update_customer(client: AsyncClient, auth_headers: dict[str, str]
     assert response.status_code == 200
     body = response.json()
     assert body["name"] == "АвиаТех-2"
-    # поля, которых не было в запросе, не меняются
+    # Поля, которых не было в запросе, не меняются.
     assert body["contact_person"] == "Иванов"
 
 
@@ -173,7 +173,7 @@ async def test_update_customer_empty_name_returns_422(
 async def test_update_customer_null_name_returns_422(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
-    """явный null в name — ошибка валидации, а не падение базы данных (500)"""
+    """Явный null в name — ошибка валидации, а не падение базы данных (500)."""
     customer = await create_customer(client, auth_headers, "АвиаТех")
 
     response = await client.patch(
@@ -201,7 +201,7 @@ async def test_search_by_name_is_case_insensitive(
 async def test_search_matches_substring_in_cyrillic_name(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
-    # регистр совпадает намеренно: sqlite сравнивает без учёта регистра только латиницу
+    # Регистр совпадает намеренно: SQLite сравнивает без учёта регистра только латиницу.
     await create_customer(client, auth_headers, "АвиаТех")
     await create_customer(client, auth_headers, "Беспилотные системы")
 
@@ -230,7 +230,7 @@ async def test_search_blank_q_is_ignored(client: AsyncClient, auth_headers: dict
 async def test_search_treats_like_wildcards_literally(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
-    """знаки % и _ в запросе — обычные символы, а не шаблон LIKE"""
+    """Знаки % и _ в запросе — обычные символы, а не шаблон LIKE."""
     for name in ("Скидка 100%", "Скидка 1000", "A_B", "AxB"):
         await create_customer(client, auth_headers, name)
 
@@ -245,20 +245,20 @@ async def test_search_treats_like_wildcards_literally(
 async def test_default_sort_is_name_ascending(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
-    for name in ("гамма", "альфа", "бета"):
+    for name in ("Гамма", "Альфа", "Бета"):
         await create_customer(client, auth_headers, name)
 
-    expected = ["альфа", "бета", "гамма"]
+    expected = ["Альфа", "Бета", "Гамма"]
     assert await list_names(client, auth_headers) == expected
     assert await list_names(client, auth_headers, "?sort=name") == expected
 
 
 @pytest.mark.asyncio
 async def test_sort_name_descending(client: AsyncClient, auth_headers: dict[str, str]) -> None:
-    for name in ("гамма", "альфа", "бета"):
+    for name in ("Гамма", "Альфа", "Бета"):
         await create_customer(client, auth_headers, name)
 
-    assert await list_names(client, auth_headers, "?sort=-name") == ["гамма", "бета", "альфа"]
+    assert await list_names(client, auth_headers, "?sort=-name") == ["Гамма", "Бета", "Альфа"]
 
 
 @pytest.mark.asyncio
@@ -277,14 +277,14 @@ async def test_pagination_limit_and_offset(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     for number in (3, 1, 5, 2, 4):
-        await create_customer(client, auth_headers, f"заказчик {number}")
+        await create_customer(client, auth_headers, f"Заказчик {number}")
 
-    assert await list_names(client, auth_headers, "?limit=2") == ["заказчик 1", "заказчик 2"]
+    assert await list_names(client, auth_headers, "?limit=2") == ["Заказчик 1", "Заказчик 2"]
     assert await list_names(client, auth_headers, "?limit=2&offset=2") == [
-        "заказчик 3",
-        "заказчик 4",
+        "Заказчик 3",
+        "Заказчик 4",
     ]
-    assert await list_names(client, auth_headers, "?limit=2&offset=4") == ["заказчик 5"]
+    assert await list_names(client, auth_headers, "?limit=2&offset=4") == ["Заказчик 5"]
     assert await list_names(client, auth_headers, "?limit=2&offset=10") == []
 
 
@@ -334,7 +334,7 @@ async def test_viewer_cannot_update_customer(
     customer = await create_customer(client, auth_headers, "АвиаТех")
 
     response = await client.patch(
-        f"{URL}/{customer['id']}", headers=viewer_headers, json={"name": "другое"}
+        f"{URL}/{customer['id']}", headers=viewer_headers, json={"name": "Другое"}
     )
 
     assert response.status_code == 403
@@ -352,6 +352,3 @@ async def test_viewer_cannot_delete_customer(
     # Заказчик остался на месте.
     still_there = await client.get(f"{URL}/{customer['id']}", headers=auth_headers)
     assert still_there.status_code == 200
-
-
-# ураура я что-то сделал!

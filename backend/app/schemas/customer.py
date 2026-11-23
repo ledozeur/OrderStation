@@ -13,7 +13,7 @@ class CustomerBase(BaseModel):
 
 
 class CustomerCreate(CustomerBase):
-    # пробелы по краям обрезаются до проверки min_length, поэтому name="   " даёт 422.
+    # Пробелы по краям обрезаются до проверки min_length, поэтому name="   " даёт 422.
     model_config = ConfigDict(str_strip_whitespace=True)
 
 
@@ -29,7 +29,7 @@ class CustomerUpdate(BaseModel):
     @field_validator("name")
     @classmethod
     def name_must_not_be_null(cls, value: str | None) -> str | None:
-        # поле можно не передавать вовсе, но явный null недопустим: name в бд обязательное
+        # Поле можно не передавать вовсе, но явный null недопустим: name в БД обязательное.
         if value is None:
             raise ValueError("name не может быть null")
         return value
