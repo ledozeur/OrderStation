@@ -26,7 +26,7 @@ ALLOWED_PROCUREMENT_TRANSITIONS: dict[ProcurementStatus, set[ProcurementStatus]]
 
 
 def validate_procurement_transition(
-        current_status: ProcurementStatus, new_status: ProcurementStatus
+    current_status: ProcurementStatus, new_status: ProcurementStatus
 ) -> None:
     if current_status == new_status:
         return
@@ -41,13 +41,11 @@ def validate_procurement_transition(
         )
 
 
-async def get_order_line_or_404(
-        db: AsyncSession, order_id: UUID, line_id: UUID
-) -> OrderLine:
+async def get_order_line_or_404(db: AsyncSession, order_id: UUID, line_id: UUID) -> OrderLine:
     stmt = select(OrderLine).where(
         OrderLine.id == line_id,
         OrderLine.order_id == order_id,
-        )
+    )
     result = await db.execute(stmt)
     line = result.scalar_one_or_none()
     if line is None:
@@ -59,16 +57,16 @@ async def get_order_line_or_404(
 
 
 async def update_line_procurement(
-        db: AsyncSession,
-        order_id: UUID,
-        line_id: UUID,
-        *,
-        procurement_status: ProcurementStatus | None = None,
-        supplier_name: str | None = None,
-        expected_delivery_date: date | None = None,
-        actual_delivery_date: date | None = None,
-        note: str | None = None,
-        fields_set: set[str] | None = None,
+    db: AsyncSession,
+    order_id: UUID,
+    line_id: UUID,
+    *,
+    procurement_status: ProcurementStatus | None = None,
+    supplier_name: str | None = None,
+    expected_delivery_date: date | None = None,
+    actual_delivery_date: date | None = None,
+    note: str | None = None,
+    fields_set: set[str] | None = None,
 ) -> OrderLine:
     line = await get_order_line_or_404(db, order_id, line_id)
     updated_fields = fields_set or set()
@@ -76,16 +74,16 @@ async def update_line_procurement(
     if procurement_status is not None:
         validate_procurement_transition(line.procurement_status, procurement_status)
         if (
-                procurement_status == ProcurementStatus.ordered
-                and line.procurement_status != ProcurementStatus.ordered
-                and line.ordered_at is None
+            procurement_status == ProcurementStatus.ordered
+            and line.procurement_status != ProcurementStatus.ordered
+            and line.ordered_at is None
         ):
             line.ordered_at = datetime.now(UTC)
         if (
-                procurement_status == ProcurementStatus.received
-                and line.procurement_status != ProcurementStatus.received
-                and actual_delivery_date is None
-                and line.actual_delivery_date is None
+            procurement_status == ProcurementStatus.received
+            and line.procurement_status != ProcurementStatus.received
+            and actual_delivery_date is None
+            and line.actual_delivery_date is None
         ):
             line.actual_delivery_date = datetime.now(UTC).date()
         line.procurement_status = procurement_status

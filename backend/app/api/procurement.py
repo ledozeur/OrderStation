@@ -12,9 +12,7 @@ from app.services import procurement_service
 
 router = APIRouter(prefix="/orders", tags=["procurement"])
 
-ProcurementUser = Annotated[
-    User, Depends(require_roles(UserRole.procurement, UserRole.manager))
-]
+ProcurementUser = Annotated[User, Depends(require_roles(UserRole.procurement, UserRole.manager))]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
@@ -24,11 +22,11 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
     summary="Обновить статус и данные закупки по позиции заказа",
 )
 async def patch_line_procurement(
-        order_id: UUID,
-        line_id: UUID,
-        payload: ProcurementUpdate,
-        db: DbSession,
-        _user: ProcurementUser,
+    order_id: UUID,
+    line_id: UUID,
+    payload: ProcurementUpdate,
+    db: DbSession,
+    _user: ProcurementUser,
 ) -> OrderLineProcurementRead:
     line = await procurement_service.update_line_procurement(
         db,
