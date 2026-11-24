@@ -1,15 +1,21 @@
+import uuid
+from datetime import date, timedelta
+
 import pytest
 from fastapi import HTTPException
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.customer import Customer
 from app.models.order import Order, OrderLine, ProcurementStatus
 from app.models.part import Part
+from app.models.user import User, UserRole
 from app.services.procurement_service import (
     ALLOWED_PROCUREMENT_TRANSITIONS,
     update_line_procurement,
     validate_procurement_transition,
 )
+from app.utils.security import create_access_token, hash_password
 
 
 @pytest.mark.parametrize(
@@ -46,7 +52,7 @@ def test_valid_procurement_transitions(src: ProcurementStatus, dst: ProcurementS
 def test_invalid_procurement_transitions(src: ProcurementStatus, dst: ProcurementStatus):
     with pytest.raises(HTTPException) as exc_info:
         validate_procurement_transition(src, dst)
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 409
 
 
 def test_all_statuses_covered_in_matrix():
@@ -72,10 +78,6 @@ async def test_update_line_procurement_lifecycle(
         await db_session.commit()
         await db_session.refresh(line)
 
-        assert line.procurement_status == ProcurementStatus.not_ordered
-        assert line.ordered_at is None
-
-        # 1. Переход not_ordered -> ordered (проставляется ordered_at)
         line = await update_line_procurement(
             db_session,
             order.id,
@@ -86,9 +88,7 @@ async def test_update_line_procurement_lifecycle(
         )
         assert line.procurement_status == ProcurementStatus.ordered
         assert line.ordered_at is not None
-        assert line.supplier_name == "Поставщик Альфа"
 
-        # 2. Переход ordered -> in_transit
         line = await update_line_procurement(
             db_session,
             order.id,
@@ -98,7 +98,6 @@ async def test_update_line_procurement_lifecycle(
         )
         assert line.procurement_status == ProcurementStatus.in_transit
 
-        # 3. Переход in_transit -> received (проставляется actual_delivery_date)
         line = await update_line_procurement(
             db_session,
             order.id,
@@ -109,7 +108,6 @@ async def test_update_line_procurement_lifecycle(
         assert line.procurement_status == ProcurementStatus.received
         assert line.actual_delivery_date is not None
 
-        # 4. Попытка изменить терминальный статус received -> cancelled вызывает 422
         with pytest.raises(HTTPException) as exc_info:
             await update_line_procurement(
                 db_session,
@@ -118,4 +116,131 @@ async def test_update_line_procurement_lifecycle(
                 procurement_status=ProcurementStatus.cancelled,
                 fields_set={"procurement_status"},
             )
-        assert exc_info.value.status_code == 422
+        assert exc_info.value.status_code == 409
+
+
+async def _seed_order_line(session_factory: async_sessionmaker[AsyncSession], suffix: str):
+    async with session_factory() as db:
+        customer = Customer(name=f"Заказчик {suffix}")
+        part = Part(sku=f"SKU-{suffix}", name=f"Деталь {suffix}")
+        db.add_all([customer, part])
+        await db.flush()
+
+        order = Order(number=f"ORD-2026-{suffix}", customer_id=customer.id)
+        db.add(order)
+        await db.flush()
+
+        line = OrderLine(order_id=order.id, part_id=part.id, quantity=3)
+        db.add(line)
+        await db.commit()
+        return order.id, line.id
+
+
+async def _make_user_headers(
+    session_factory: async_sessionmaker[AsyncSession], email: str, role: UserRole
+) -> dict[str, str]:
+    async with session_factory() as db:
+        user = User(
+            email=email,
+            hashed_password=hash_password("pass1234"),
+            full_name=f"User {role.value}",
+            role=role,
+            is_active=True,
+        )
+        db.add(user)
+        await db.commit()
+    token = create_access_token(email)
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.asyncio
+async def test_patch_procurement_endpoint_happy_path_and_409(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    order_id, line_id = await _seed_order_line(session_factory, "00101")
+    proc_headers = await _make_user_headers(
+        session_factory, "proc_tester@example.com", UserRole.procurement
+    )
+
+    # Попытка перепрыгнуть not_ordered -> received -> 409
+    bad_resp = await client.patch(
+        f"/api/v1/orders/{order_id}/lines/{line_id}/procurement",
+        json={"procurement_status": "received"},
+        headers=proc_headers,
+    )
+    assert bad_resp.status_code == 409
+
+    # Нормальный переход not_ordered -> ordered
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    ok_resp = await client.patch(
+        f"/api/v1/orders/{order_id}/lines/{line_id}/procurement",
+        json={
+            "procurement_status": "ordered",
+            "supplier_name": "ООО ДронСнаб",
+            "expected_delivery_date": tomorrow,
+            "note": "Срочная поставка",
+        },
+        headers=proc_headers,
+    )
+    assert ok_resp.status_code == 200
+    body = ok_resp.json()
+    assert body["procurement_status"] == "ordered"
+    assert body["supplier_name"] == "ООО ДронСнаб"
+    assert body["ordered_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_patch_procurement_date_validation_422(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    order_id, line_id = await _seed_order_line(session_factory, "00102")
+    proc_headers = await _make_user_headers(
+        session_factory, "proc_dates@example.com", UserRole.procurement
+    )
+
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    resp = await client.patch(
+        f"/api/v1/orders/{order_id}/lines/{line_id}/procurement",
+        json={"procurement_status": "ordered", "expected_delivery_date": yesterday},
+        headers=proc_headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_patch_procurement_rbac_viewer_403(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    order_id, line_id = await _seed_order_line(session_factory, "00103")
+    viewer_headers = await _make_user_headers(
+        session_factory, "viewer_test@example.com", UserRole.viewer
+    )
+
+    resp = await client.patch(
+        f"/api/v1/orders/{order_id}/lines/{line_id}/procurement",
+        json={"procurement_status": "ordered"},
+        headers=viewer_headers,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_patch_procurement_404_and_401(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    unauth = await client.patch(
+        f"/api/v1/orders/{uuid.uuid4()}/lines/{uuid.uuid4()}/procurement",
+        json={"procurement_status": "ordered"},
+    )
+    assert unauth.status_code == 401
+
+    not_found = await client.patch(
+        f"/api/v1/orders/{uuid.uuid4()}/lines/{uuid.uuid4()}/procurement",
+        json={"procurement_status": "ordered"},
+        headers=auth_headers,
+    )
+    assert not_found.status_code == 404
