@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import CurrentUser, require_roles
 from app.models.order import Order, OrderStatus
-from app.schemas.order import OrderCreate, OrderRead, OrderUpdate
+from app.schemas.order import (
+    ApplyTemplateRequest,
+    OrderCreate,
+    OrderRead,
+    OrderUpdate,
+    OrderWithLinesRead,
+)
 from app.services import order_service
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -86,3 +92,17 @@ async def get_order(_: CurrentUser, db: DbSession, order_id: UUID) -> Order:
 )
 async def update_order(_: ManagerUser, db: DbSession, order_id: UUID, body: OrderUpdate) -> Order:
     return await order_service.update_order(db, order_id, body)
+
+
+@router.post(
+    "/{order_id}/apply-template",
+    response_model=OrderWithLinesRead,
+    # остальные параметры без изменений
+)
+async def apply_template(
+    _: ManagerUser, db: DbSession, order_id: UUID, body: ApplyTemplateRequest
+) -> Order:
+    order = await order_service.apply_template(db, order_id, body.template_id)
+    # В async-сессии связь lines не подгружается сама: без этого будет MissingGreenlet.
+    await db.refresh(order, ["lines"])
+    return order
