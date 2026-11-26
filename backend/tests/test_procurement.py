@@ -136,6 +136,31 @@ async def _seed_order_line(session_factory: async_sessionmaker[AsyncSession], su
         return order.id, line.id
 
 
+async def test_get_order_lines_includes_part_sku_and_name(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    order_id, _line_id = await _seed_order_line(session_factory, "LINES-01")
+
+    resp = await client.get(f"/api/v1/orders/{order_id}/lines", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["part_sku"] == "SKU-LINES-01"
+    assert data[0]["part_name"] == "Деталь LINES-01"
+    assert float(data[0]["quantity"]) == 3.0
+
+
+@pytest.mark.asyncio
+async def test_get_order_lines_not_found_404(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    resp = await client.get(f"/api/v1/orders/{uuid.uuid4()}/lines", headers=auth_headers)
+    assert resp.status_code == 404
+
+
 async def _make_user_headers(
     session_factory: async_sessionmaker[AsyncSession], email: str, role: UserRole
 ) -> dict[str, str]:

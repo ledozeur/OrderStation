@@ -28,3 +28,9 @@ class OrderLineProcurementRead(BaseModel):
     expected_delivery_date: date | None
     actual_delivery_date: date | None
     note: str | None
+
+
+class OrderLineRead(OrderLineProcurementRead):
+    source: str = Field(examples=["template"])
+    part_sku: str = Field(examples=["UAV-MOT-2216"])
+    part_name: str = Field(examples=["Двигатель бесколлекторный 2216 920KV"])

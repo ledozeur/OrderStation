@@ -5,7 +5,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.order import OrderLine, ProcurementStatus
+from app.models.order import Order, OrderLine, ProcurementStatus
+from app.models.part import Part
+from app.schemas.procurement import OrderLineRead
 
 ALLOWED_PROCUREMENT_TRANSITIONS: dict[ProcurementStatus, set[ProcurementStatus]] = {
     ProcurementStatus.not_ordered: {
@@ -112,3 +114,38 @@ async def update_line_procurement(
     await db.commit()
     await db.refresh(line)
     return line
+
+
+async def list_order_lines(db: AsyncSession, order_id: UUID) -> list[OrderLineRead]:
+    order_res = await db.execute(select(Order).where(Order.id == order_id))
+    if order_res.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Заказ не найден",
+        )
+
+    stmt = (
+        select(OrderLine, Part)
+        .join(Part, OrderLine.part_id == Part.id)
+        .where(OrderLine.order_id == order_id)
+        .order_by(Part.sku)
+    )
+    result = await db.execute(stmt)
+    return [
+        OrderLineRead(
+            id=line.id,
+            order_id=line.order_id,
+            part_id=line.part_id,
+            part_sku=part.sku,
+            part_name=part.name,
+            quantity=line.quantity,
+            source=line.source,
+            procurement_status=line.procurement_status,
+            supplier_name=line.supplier_name,
+            ordered_at=line.ordered_at,
+            expected_delivery_date=line.expected_delivery_date,
+            actual_delivery_date=line.actual_delivery_date,
+            note=line.note,
+        )
+        for line, part in result.all()
+    ]

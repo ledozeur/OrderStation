@@ -5,15 +5,33 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_roles
+from app.dependencies import CurrentUser, require_roles
 from app.models.user import User, UserRole
-from app.schemas.procurement import OrderLineProcurementRead, ProcurementUpdate
+from app.schemas.procurement import (
+    OrderLineProcurementRead,
+    OrderLineRead,
+    ProcurementUpdate,
+)
 from app.services import procurement_service
 
 router = APIRouter(prefix="/orders", tags=["procurement"])
 
 ProcurementUser = Annotated[User, Depends(require_roles(UserRole.procurement, UserRole.manager))]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+
+
+@router.get(
+    "/{order_id}/lines",
+    response_model=list[OrderLineRead],
+    summary="Список позиций заказа с артикулом и названием запчасти",
+    responses={404: {"description": "Заказ не найден"}},
+)
+async def get_order_lines(
+    order_id: UUID,
+    db: DbSession,
+    _user: CurrentUser,
+) -> list[OrderLineRead]:
+    return await procurement_service.list_order_lines(db, order_id)
 
 
 @router.patch(
