@@ -49,9 +49,7 @@ async def list_deadline_orders(
     if overdue:
         conditions.append(overdue_clause(today))
     if due_in_days is not None:
-        conditions.append(
-            Order.deadline_date.between(today, today + timedelta(days=due_in_days))
-        )
+        conditions.append(Order.deadline_date.between(today, today + timedelta(days=due_in_days)))
     if conditions:
         stmt = stmt.where(or_(*conditions))
 
