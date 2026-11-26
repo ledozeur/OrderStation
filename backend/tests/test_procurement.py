@@ -1,5 +1,8 @@
+import uuid
+
 import pytest
 from fastapi import HTTPException
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.customer import Customer
@@ -119,3 +122,46 @@ async def test_update_line_procurement_lifecycle(
                 fields_set={"procurement_status"},
             )
         assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def _seed_order_line(session_factory: async_sessionmaker[AsyncSession], suffix: str):
+    async with session_factory() as db:
+        customer = Customer(name=f"Заказчик {suffix}")
+        part = Part(sku=f"SKU-{suffix}", name=f"Деталь {suffix}")
+        db.add_all([customer, part])
+        await db.flush()
+
+        order = Order(number=f"ORD-2026-{suffix}", customer_id=customer.id)
+        db.add(order)
+        await db.flush()
+
+        line = OrderLine(order_id=order.id, part_id=part.id, quantity=3)
+        db.add(line)
+        await db.commit()
+        return order.id, line.id
+
+
+async def test_get_order_lines_includes_part_sku_and_name(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    order_id, _line_id = await _seed_order_line(session_factory, "LINES-01")
+
+    resp = await client.get(f"/api/v1/orders/{order_id}/lines", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["part_sku"] == "SKU-LINES-01"
+    assert data[0]["part_name"] == "Деталь LINES-01"
+    assert float(data[0]["quantity"]) == 3.0
+
+
+@pytest.mark.asyncio
+async def test_get_order_lines_not_found_404(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    resp = await client.get(f"/api/v1/orders/{uuid.uuid4()}/lines", headers=auth_headers)
+    assert resp.status_code == 404
