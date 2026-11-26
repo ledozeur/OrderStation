@@ -33,7 +33,7 @@ def validate_procurement_transition(
     allowed = ALLOWED_PROCUREMENT_TRANSITIONS.get(current_status, set())
     if new_status not in allowed:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"Недопустимый переход статуса закупки: "
                 f"'{current_status.value}' -> '{new_status.value}'"
@@ -87,6 +87,18 @@ async def update_line_procurement(
         ):
             line.actual_delivery_date = datetime.now(UTC).date()
         line.procurement_status = procurement_status
+
+    new_expected = (
+        expected_delivery_date
+        if ("expected_delivery_date" in updated_fields or expected_delivery_date is not None)
+        else line.expected_delivery_date
+    )
+    if new_expected is not None and line.ordered_at is not None:
+        if new_expected < line.ordered_at.date():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Ожидаемая дата доставки не может быть раньше даты заказа (ordered_at)",
+            )
 
     if "supplier_name" in updated_fields or supplier_name is not None:
         line.supplier_name = supplier_name
