@@ -116,10 +116,6 @@ async def test_update_line_procurement_lifecycle(
                 procurement_status=ProcurementStatus.cancelled,
                 fields_set={"procurement_status"},
             )
-        assert exc_info.value.status_code == 422
-
-
-@pytest.mark.asyncio
         assert exc_info.value.status_code == 409
 
 
@@ -163,6 +159,8 @@ async def test_get_order_lines_not_found_404(
 ):
     resp = await client.get(f"/api/v1/orders/{uuid.uuid4()}/lines", headers=auth_headers)
     assert resp.status_code == 404
+
+
 async def _make_user_headers(
     session_factory: async_sessionmaker[AsyncSession], email: str, role: UserRole
 ) -> dict[str, str]:
