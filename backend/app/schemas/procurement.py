@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.order import LineSource, ProcurementStatus
+from app.models.order import ProcurementStatus
 
 
 class ProcurementUpdate(BaseModel):
@@ -31,6 +31,6 @@ class OrderLineProcurementRead(BaseModel):
 
 
 class OrderLineRead(OrderLineProcurementRead):
-    source: LineSource
+    source: str = Field(examples=["template"])
     part_sku: str = Field(examples=["UAV-MOT-2216"])
     part_name: str = Field(examples=["Двигатель бесколлекторный 2216 920KV"])
