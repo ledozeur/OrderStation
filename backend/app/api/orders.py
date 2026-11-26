@@ -28,7 +28,8 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
     summary="Реестр заказов",
     description=(
         "Возвращает заказы постранично, сначала новые. "
-        "Можно отфильтровать по статусу (`status`) и заказчику (`customer_id`)."
+        "Можно отфильтровать по статусу (`status`), заказчику (`customer_id`) "
+        "и признаку просрочки (`overdue`)."
     ),
 )
 async def list_orders(
@@ -43,6 +44,16 @@ async def list_orders(
         ),
     ] = None,
     customer_id: Annotated[UUID | None, Query(description="Только заказы этого заказчика.")] = None,
+    overdue: Annotated[
+        bool,
+        Query(
+            description=(
+                "`true` — только просроченные заказы: срок раньше сегодняшнего дня, "
+                "статус не `completed` и не `cancelled`. Заказы без срока не считаются "
+                "просроченными. `false` или отсутствие параметра — фильтр не применяется."
+            ),
+        ),
+    ] = False,
     limit: Annotated[
         int, Query(ge=1, le=100, description="Сколько записей вернуть (от 1 до 100).")
     ] = 50,
@@ -51,7 +62,12 @@ async def list_orders(
     ] = 0,
 ) -> list[Order]:
     return await order_service.list_orders(
-        db, order_status=order_status, customer_id=customer_id, limit=limit, offset=offset
+        db,
+        order_status=order_status,
+        customer_id=customer_id,
+        overdue=overdue,
+        limit=limit,
+        offset=offset,
     )
 
 
