@@ -4,10 +4,19 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.customer import Customer
-from app.models.order import Order, OrderStatus
+from app.models.order import (
+    Order,
+    OrderLine,
+    OrderLineSource,
+    OrderStatus,
+    OrderType,
+    ProcurementStatus,
+)
 from app.schemas.order import OrderCreate, OrderUpdate
+from app.services import bom_service
 from app.utils.order_number import generate_order_number
 
 # Сколько раз пробуем выдать номер, если параллельный запрос успел занять такой же.
@@ -92,3 +101,85 @@ async def update_order(db: AsyncSession, order_id: UUID, payload: OrderUpdate) -
     await db.flush()
     await db.refresh(order)
     return order
+
+
+async def apply_template(db: AsyncSession, order_id: UUID, template_id: UUID) -> Order:
+    """Копирует позиции шаблона BOM в строки заказа (source=template). Только для draft.
+
+    Что копируется: каждая позиция шаблона становится строкой заказа с тем же part_id,
+    количеством и примечанием, procurement_status=not_ordered. Необязательные позиции
+    (is_optional) копируются тоже: в OrderLine нет такого признака, решать, что из них
+    не нужно, будет менеджер.
+
+    Повторный apply ЗАМЕНЯЕТ результат предыдущего: старые строки с source=template
+    удаляются и создаются заново по выбранному шаблону. Строки source=manual не
+    трогаются. Так менеджер может исправить ошибочно выбранный шаблон, пока заказ в draft,
+    а повторный apply того же шаблона не дублирует строки.
+
+    Защита от потери данных: если по какой-то строке из шаблона закупка уже начата
+    (procurement_status != not_ordered), заменять нельзя, будет 409.
+
+    Заказ получает template_id и тип standard (по умолчанию заказ создаётся как custom).
+    """
+    order = await get_order_or_404(db, order_id)
+    if order.status != OrderStatus.draft:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Применить шаблон можно только к заказу в статусе draft, сейчас: {order.status}"
+            ),
+        )
+
+    template = await bom_service.get_template_or_404(db, template_id)
+    if not template.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Шаблон BOM неактивен, применить его нельзя",
+        )
+
+    old_lines = (
+        await db.scalars(
+            select(OrderLine).where(
+                OrderLine.order_id == order.id, OrderLine.source == OrderLineSource.template
+            )
+        )
+    ).all()
+    if any(line.procurement_status != ProcurementStatus.not_ordered for line in old_lines):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Нельзя заменить шаблон: по его строкам уже начаты закупки",
+        )
+
+    for line in old_lines:
+        await db.delete(line)
+    for item in template.items:
+        db.add(
+            OrderLine(
+                order_id=order.id,
+                part_id=item.part_id,
+                quantity=item.quantity,
+                source=OrderLineSource.template,
+                note=item.note,
+            )
+        )
+    order.template_id = template.id
+    order.order_type = OrderType.standard
+    await db.flush()
+
+    return await get_order_with_lines(db, order.id)
+
+
+async def get_order_with_lines(db: AsyncSession, order_id: UUID) -> Order:
+    """Заказ вместе со строками.
+
+    Строки подгружаем явно: в async-сессии обращение к `order.lines` без загрузки падает
+    с MissingGreenlet. Заказ уже лежит в сессии без строк, а `populate_existing` заставляет
+    SQLAlchemy заново заполнить этот объект данными из базы, включая строки.
+    """
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.lines))
+        .where(Order.id == order_id)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one()

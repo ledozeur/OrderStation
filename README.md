@@ -41,6 +41,8 @@ Backend (REST API) для учёта заказов БПЛА: заказчики
 | `viewer` | Только чтение (там, где включим проверку роли) |
 
 Демо-логин после `scripts/create_admin_user.py`: **`admin@example.com`** / **`admin`** (роль `manager`).
+Демо-логин закупщика после `scripts/seed_demo_data.py`: **`procurement@example.com`** / **`procurement`** (роль `procurement`).
+
 
 ---
 
@@ -95,6 +97,7 @@ pip install -e ".[dev]"
 copy ..\.env.example ..\.env
 alembic upgrade head
 python scripts/create_admin_user.py
+python scripts/seed_demo_data.py
 uvicorn app.main:app --reload
 ```
 

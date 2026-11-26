@@ -1,9 +1,10 @@
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.order import OrderStatus, OrderType
+from app.models.order import OrderLineSource, OrderStatus, OrderType, ProcurementStatus
 
 
 class OrderCreate(BaseModel):
@@ -57,3 +58,53 @@ class OrderRead(BaseModel):
     description: str | None
     created_at: datetime
     confirmed_at: datetime | None
+
+
+class ApplyTemplateRequest(BaseModel):
+    """Применение шаблона BOM к заказу."""
+
+    template_id: UUID = Field(description="ID шаблона BOM, который нужно применить к заказу.")
+
+
+class OrderLineRead(BaseModel):
+    """Строка заказа."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    order_id: UUID
+    part_id: UUID
+    quantity: Decimal
+    source: OrderLineSource = Field(
+        description="template — скопирована из шаблона BOM, manual — добавлена вручную."
+    )
+    procurement_status: ProcurementStatus
+    note: str | None
+
+
+class OrderDetailRead(OrderRead):
+    """Заказ вместе со строками."""
+
+    lines: list[OrderLineRead]
+
+
+class OrderLineRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    order_id: UUID
+    part_id: UUID
+    quantity: Decimal
+    source: OrderLineSource
+    procurement_status: ProcurementStatus
+    supplier_name: str | None
+    expected_delivery_date: date | None
+    actual_delivery_date: date | None
+    ordered_at: datetime | None
+    note: str | None
+
+
+class OrderWithLinesRead(OrderRead):
+    """Заказ вместе с позициями."""
+
+    lines: list[OrderLineRead]
