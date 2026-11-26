@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 import pytest_asyncio
@@ -501,3 +501,52 @@ async def test_viewer_cannot_update_order(
     )
 
     assert response.status_code == 403
+
+
+def days(offset: int) -> str:
+    """Дата относительно сегодня в формате ГГГГ-ММ-ДД: days(-1) — вчера."""
+    return (date.today() + timedelta(days=offset)).isoformat()
+
+
+@pytest.mark.asyncio
+async def test_list_orders_overdue_returns_only_past_deadlines(
+    client: AsyncClient, auth_headers: dict[str, str], customer_id: str
+) -> None:
+    past = await create_order(client, auth_headers, customer_id, deadline_date=days(-1))
+    await create_order(client, auth_headers, customer_id, deadline_date=days(0))
+    await create_order(client, auth_headers, customer_id, deadline_date=days(5))
+    await create_order(client, auth_headers, customer_id)  # без срока
+
+    response = await client.get(f"{URL}?overdue=true", headers=auth_headers)
+
+    assert response.status_code == 200
+    # Срок «сегодня» ещё не просрочен, заказ без срока тоже.
+    assert [row["number"] for row in response.json()] == [past["number"]]
+
+    # overdue=false фильтр не применяет.
+    everything = await client.get(f"{URL}?overdue=false", headers=auth_headers)
+    assert len(everything.json()) == 4
+
+
+@pytest.mark.asyncio
+async def test_list_orders_overdue_excludes_closed_orders(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    customer_id: str,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    draft = await create_order(client, auth_headers, customer_id, deadline_date=days(-3))
+    in_procurement = await create_order(client, auth_headers, customer_id, deadline_date=days(-3))
+    completed = await create_order(client, auth_headers, customer_id, deadline_date=days(-3))
+    cancelled = await create_order(client, auth_headers, customer_id, deadline_date=days(-3))
+    await set_status(session_factory, in_procurement["id"], OrderStatus.in_procurement)
+    await set_status(session_factory, completed["id"], OrderStatus.completed)
+    await set_status(session_factory, cancelled["id"], OrderStatus.cancelled)
+
+    response = await client.get(f"{URL}?overdue=true", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert {row["number"] for row in response.json()} == {
+        draft["number"],
+        in_procurement["number"],
+    }

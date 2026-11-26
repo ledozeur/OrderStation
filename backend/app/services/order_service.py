@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -17,6 +18,7 @@ from app.models.order import (
 )
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.services import bom_service
+from app.services.reporting_service import overdue_clause
 from app.utils.order_number import generate_order_number
 
 # Сколько раз пробуем выдать номер, если параллельный запрос успел занять такой же.
@@ -28,6 +30,7 @@ async def list_orders(
     *,
     order_status: OrderStatus | None = None,
     customer_id: UUID | None = None,
+    overdue: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> list[Order]:
@@ -36,6 +39,9 @@ async def list_orders(
         stmt = stmt.where(Order.status == order_status)
     if customer_id is not None:
         stmt = stmt.where(Order.customer_id == customer_id)
+    if overdue:
+        # Тот же критерий, что в отчёте /reports/deadlines (K-W3-01).
+        stmt = stmt.where(overdue_clause(date.today()))
     # Сначала новые. Номер вторым ключом: created_at у заказов из одной секунды совпадает.
     stmt = stmt.order_by(Order.created_at.desc(), Order.number.desc()).offset(offset).limit(limit)
     result = await db.execute(stmt)
