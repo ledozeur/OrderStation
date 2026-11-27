@@ -29,3 +29,12 @@ class PartRead(PartBase):
 
     id: UUID
     created_at: datetime
+
+
+class PartImportResult(BaseModel):
+    created: int = Field(description="Количество созданных запчастей", examples=[5])
+    skipped: int = Field(description="Количество пропущенных дубликатов по sku", examples=[1])
+    errors: list[str] = Field(
+        default_factory=list,
+        description="Список ошибок валидации по строкам CSV",
+    )
