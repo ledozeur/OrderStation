@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -10,6 +10,7 @@ from app.models.user import User, UserRole
 from app.schemas.procurement import (
     OrderLineProcurementRead,
     OrderLineRead,
+    ProcurementBulkItem,
     ProcurementUpdate,
 )
 from app.services import procurement_service
@@ -32,6 +33,26 @@ async def get_order_lines(
     _user: CurrentUser,
 ) -> list[OrderLineRead]:
     return await procurement_service.list_order_lines(db, order_id)
+
+
+@router.patch(
+    "/{order_id}/lines/procurement-bulk",
+    response_model=list[OrderLineProcurementRead],
+    summary="Массовое обновление закупки по позициям заказа (до 50 линий)",
+    responses={
+        404: {"description": "Заказ или позиция не найдены"},
+        409: {"description": "Недопустимый переход статуса"},
+        422: {"description": "Ошибка валидации (больше 50 элементов или неверная дата)"},
+    },
+)
+async def patch_lines_procurement_bulk(
+    order_id: UUID,
+    payload: Annotated[list[ProcurementBulkItem], Body(min_length=1, max_length=50)],
+    db: DbSession,
+    _user: ProcurementUser,
+) -> list[OrderLineProcurementRead]:
+    lines = await procurement_service.bulk_update_line_procurement(db, order_id, payload)
+    return [OrderLineProcurementRead.model_validate(line) for line in lines]
 
 
 @router.patch(

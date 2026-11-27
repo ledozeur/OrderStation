@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order, OrderLine, ProcurementStatus
 from app.models.part import Part
-from app.schemas.procurement import OrderLineRead
+from app.schemas.procurement import OrderLineRead, ProcurementBulkItem
 
 ALLOWED_PROCUREMENT_TRANSITIONS: dict[ProcurementStatus, set[ProcurementStatus]] = {
     ProcurementStatus.not_ordered: {
@@ -149,3 +149,86 @@ async def list_order_lines(db: AsyncSession, order_id: UUID) -> list[OrderLineRe
         )
         for line, part in result.all()
     ]
+
+
+def _apply_line_procurement_changes(
+    line: OrderLine,
+    *,
+    procurement_status: ProcurementStatus | None = None,
+    supplier_name: str | None = None,
+    expected_delivery_date: date | None = None,
+    actual_delivery_date: date | None = None,
+    note: str | None = None,
+    fields_set: set[str] | None = None,
+) -> None:
+    updated_fields = fields_set or set()
+
+    if procurement_status is not None:
+        validate_procurement_transition(line.procurement_status, procurement_status)
+        if (
+            procurement_status == ProcurementStatus.ordered
+            and line.procurement_status != ProcurementStatus.ordered
+            and line.ordered_at is None
+        ):
+            line.ordered_at = datetime.now(UTC)
+        if (
+            procurement_status == ProcurementStatus.received
+            and line.procurement_status != ProcurementStatus.received
+            and actual_delivery_date is None
+            and line.actual_delivery_date is None
+        ):
+            line.actual_delivery_date = datetime.now(UTC).date()
+        line.procurement_status = procurement_status
+
+    new_expected = (
+        expected_delivery_date
+        if ("expected_delivery_date" in updated_fields or expected_delivery_date is not None)
+        else line.expected_delivery_date
+    )
+    if new_expected is not None and line.ordered_at is not None:
+        if new_expected < line.ordered_at.date():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Ожидаемая дата доставки не может быть раньше даты заказа (ordered_at)",
+            )
+
+    if "supplier_name" in updated_fields or supplier_name is not None:
+        line.supplier_name = supplier_name
+    if "expected_delivery_date" in updated_fields or expected_delivery_date is not None:
+        line.expected_delivery_date = expected_delivery_date
+    if "actual_delivery_date" in updated_fields or actual_delivery_date is not None:
+        line.actual_delivery_date = actual_delivery_date
+    if "note" in updated_fields or note is not None:
+        line.note = note
+
+
+async def bulk_update_line_procurement(
+    db: AsyncSession,
+    order_id: UUID,
+    items: list[ProcurementBulkItem],
+) -> list[OrderLine]:
+    order_res = await db.execute(select(Order).where(Order.id == order_id))
+    if order_res.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Заказ не найден",
+        )
+
+    updated_lines: list[OrderLine] = []
+    for item in items:
+        line = await get_order_line_or_404(db, order_id, item.line_id)
+        _apply_line_procurement_changes(
+            line,
+            procurement_status=item.procurement_status,
+            supplier_name=item.supplier_name,
+            expected_delivery_date=item.expected_delivery_date,
+            actual_delivery_date=item.actual_delivery_date,
+            note=item.note,
+            fields_set=item.model_fields_set,
+        )
+        updated_lines.append(line)
+
+    await db.commit()
+    for line in updated_lines:
+        await db.refresh(line)
+    return updated_lines
