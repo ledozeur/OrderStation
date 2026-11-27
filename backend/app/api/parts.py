@@ -1,13 +1,13 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_roles
 from app.models.user import User, UserRole
-from app.schemas.part import PartCreate, PartRead, PartUpdate
+from app.schemas.part import PartCreate, PartImportResult, PartRead, PartUpdate
 from app.services import catalog_service
 
 router = APIRouter(prefix="/parts", tags=["parts"])
@@ -39,6 +39,26 @@ async def list_parts(
 async def create_part(payload: PartCreate, db: DbSession, _user: ManagerUser) -> PartRead:
     part = await catalog_service.create_part(db, payload)
     return PartRead.model_validate(part)
+
+
+@router.post(
+    "/import",
+    response_model=PartImportResult,
+    summary="Импорт запчастей из UTF-8 CSV (дубли sku пропускаются)",
+    description=(
+        "Загружает запчасти из CSV-файла в кодировке UTF-8"
+        "с колонками `sku,name,unit,category`. "
+        "Записи с уже существующим в базе `sku` пропускаются (`skipped`)."
+    ),
+    responses={422: {"description": "Некорректная кодировка или структура CSV"}},
+)
+async def import_parts(
+    db: DbSession,
+    _user: ManagerUser,
+    file: Annotated[UploadFile, File(description="CSV-файл в кодировке UTF-8")],
+) -> PartImportResult:
+    raw_bytes = await file.read()
+    return await catalog_service.import_parts_csv(db, raw_bytes)
 
 
 @router.get("/{part_id}", response_model=PartRead, summary="Получить запчасть по ID")
