@@ -1,3 +1,5 @@
+import csv
+import io
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -5,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.part import Part
-from app.schemas.part import PartCreate, PartUpdate
+from app.schemas.part import PartCreate, PartImportResult, PartUpdate
 
 
 async def list_parts(
@@ -73,3 +75,69 @@ async def soft_delete_part(db: AsyncSession, part_id: UUID) -> None:
     part = await get_part_or_404(db, part_id)
     part.is_active = False
     await db.commit()
+
+
+async def import_parts_csv(db: AsyncSession, raw_bytes: bytes) -> PartImportResult:
+    try:
+        text = raw_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Файл должен быть в кодировке UTF-8",
+        ) from exc
+
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="CSV-файл пуст",
+        )
+
+    delimiter = ";" if ";" in lines[0] and "," not in lines[0] else ","
+    reader = csv.DictReader(io.StringIO("\n".join(lines)), delimiter=delimiter)
+    if not reader.fieldnames or not {"sku", "name"}.issubset(
+        {f.strip().lower() for f in reader.fieldnames}
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "CSV должен содержать обязательные колонки: sku, name (опционально: unit, category)"
+            ),
+        )
+
+    existing_res = await db.execute(select(Part.sku))
+    known_skus: set[str] = set(existing_res.scalars().all())
+
+    created = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for row_num, raw_row in enumerate(reader, start=2):
+        row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw_row.items()}
+        sku = row.get("sku", "")
+        name = row.get("name", "")
+        unit = row.get("unit") or "шт"
+        category = row.get("category") or None
+
+        if not sku or not name:
+            errors.append(f"Строка {row_num}: пустой sku или name")
+            continue
+
+        if sku in known_skus:
+            skipped += 1
+            continue
+
+        try:
+            validated = PartCreate(sku=sku, name=name, unit=unit, category=category)
+        except Exception as exc:
+            errors.append(f"Строка {row_num} ({sku}): {exc}")
+            continue
+
+        db.add(Part(**validated.model_dump()))
+        known_skus.add(sku)
+        created += 1
+
+    if created > 0:
+        await db.commit()
+
+    return PartImportResult(created=created, skipped=skipped, errors=errors)

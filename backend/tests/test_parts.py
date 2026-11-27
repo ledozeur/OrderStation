@@ -105,3 +105,48 @@ async def test_update_part_and_sku_conflict(client: AsyncClient, auth_headers: d
 async def test_parts_unauthorized(client: AsyncClient):
     resp = await client.get("/api/v1/parts")
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_import_parts_csv_creates_and_skips_duplicates(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    # Создадим заранее одну деталь, чтобы проверить пропуск дубликата
+    await client.post(
+        "/api/v1/parts",
+        json={"sku": "CSV-EXIST-1", "name": "Существующая деталь"},
+        headers=auth_headers,
+    )
+
+    csv_content = (
+        "sku,name,unit,category\n"
+        "CSV-EXIST-1,Дубликат старой детали,шт,Разное\n"
+        "CSV-NEW-1,Новая камера HD,шт,Оптика\n"
+        "CSV-NEW-2,Кабель силовой,компл,Крепёж\n"
+    ).encode()
+
+    resp = await client.post(
+        "/api/v1/parts/import",
+        files={"file": ("parts.csv", csv_content, "text/csv")},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["created"] == 2
+    assert body["skipped"] == 1
+    assert body["errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_import_parts_csv_invalid_headers_422(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    bad_csv = b"wrong_col1,wrong_col2\nval1,val2\n"
+    resp = await client.post(
+        "/api/v1/parts/import",
+        files={"file": ("bad.csv", bad_csv, "text/csv")},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
