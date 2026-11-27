@@ -269,3 +269,73 @@ async def test_patch_procurement_404_and_401(
         headers=auth_headers,
     )
     assert not_found.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bulk_patch_procurement_happy_path_and_atomic_rollback(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    async with session_factory() as db:
+        customer = Customer(name="ООО Массовая Закупка")
+        p1 = Part(sku="BULK-PART-1", name="Мотор 1")
+        p2 = Part(sku="BULK-PART-2", name="Мотор 2")
+        db.add_all([customer, p1, p2])
+        await db.flush()
+
+        order = Order(number="ORD-2026-BULK1", customer_id=customer.id)
+        db.add(order)
+        await db.flush()
+
+        l1 = OrderLine(order_id=order.id, part_id=p1.id, quantity=2)
+        l2 = OrderLine(order_id=order.id, part_id=p2.id, quantity=4)
+        db.add_all([l1, l2])
+        await db.commit()
+        order_id, l1_id, l2_id = order.id, l1.id, l2.id
+
+    # 1. Успешное массовое обновление двух позиций (not_ordered -> ordered)
+    ok_resp = await client.patch(
+        f"/api/v1/orders/{order_id}/lines/procurement-bulk",
+        json=[
+            {"line_id": str(l1_id), "procurement_status": "ordered", "supplier_name": "Поставщик"},
+            {"line_id": str(l2_id), "procurement_status": "ordered", "note": "Срочно"},
+        ],
+        headers=auth_headers,
+    )
+    assert ok_resp.status_code == 200
+    body = ok_resp.json()
+    assert len(body) == 2
+    assert all(item["procurement_status"] == "ordered" for item in body)
+    assert all(item["ordered_at"] is not None for item in body)
+
+    # 2. Атомарный откат: первая позиция валидна (ordered -> in_transit),
+    # вторая невалидна (ordered -> received запрещён -> 409) — ни одна не должна измениться
+    bad_resp = await client.patch(
+        f"/api/v1/orders/{order_id}/lines/procurement-bulk",
+        json=[
+            {"line_id": str(l1_id), "procurement_status": "in_transit"},
+            {"line_id": str(l2_id), "procurement_status": "received"},
+        ],
+        headers=auth_headers,
+    )
+    assert bad_resp.status_code == 409
+
+    check_resp = await client.get(f"/api/v1/orders/{order_id}/lines", headers=auth_headers)
+    assert all(item["procurement_status"] == "ordered" for item in check_resp.json())
+
+
+@pytest.mark.asyncio
+async def test_bulk_patch_procurement_max_50_limit_422(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    oversized_payload = [
+        {"line_id": str(uuid.uuid4()), "procurement_status": "ordered"} for _ in range(51)
+    ]
+    resp = await client.patch(
+        f"/api/v1/orders/{uuid.uuid4()}/lines/procurement-bulk",
+        json=oversized_payload,
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
