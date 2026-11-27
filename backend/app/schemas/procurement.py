@@ -15,6 +15,10 @@ class ProcurementUpdate(BaseModel):
     note: str | None = None
 
 
+class ProcurementBulkItem(ProcurementUpdate):
+    line_id: UUID
+
+
 class OrderLineProcurementRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
