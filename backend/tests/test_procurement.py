@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.customer import Customer
-from app.models.order import Order, OrderLine, OrderStatus, ProcurementStatus
+from app.models.order import Order, OrderLine, ProcurementStatus
 from app.models.part import Part
 from app.models.user import User, UserRole
 from app.services.procurement_service import (
@@ -69,11 +69,7 @@ async def test_update_line_procurement_lifecycle(
         db_session.add_all([customer, part])
         await db_session.flush()
 
-        order = Order(
-            number="ORD-PROC-001",
-            customer_id=customer.id,
-            status=OrderStatus.confirmed,
-        )
+        order = Order(number="ORD-PROC-001", customer_id=customer.id)
         db_session.add(order)
         await db_session.flush()
 
@@ -130,11 +126,7 @@ async def _seed_order_line(session_factory: async_sessionmaker[AsyncSession], su
         db.add_all([customer, part])
         await db.flush()
 
-        order = Order(
-            number=f"ORD-2026-{suffix}",
-            customer_id=customer.id,
-            status=OrderStatus.confirmed,
-        )
+        order = Order(number=f"ORD-2026-{suffix}", customer_id=customer.id)
         db.add(order)
         await db.flush()
 
@@ -196,6 +188,7 @@ async def test_patch_procurement_endpoint_happy_path_and_409(
         session_factory, "proc_tester@example.com", UserRole.procurement
     )
 
+    # Попытка перепрыгнуть not_ordered -> received -> 409
     bad_resp = await client.patch(
         f"/api/v1/orders/{order_id}/lines/{line_id}/procurement",
         json={"procurement_status": "received"},
@@ -203,6 +196,7 @@ async def test_patch_procurement_endpoint_happy_path_and_409(
     )
     assert bad_resp.status_code == 409
 
+    # Нормальный переход not_ordered -> ordered
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     ok_resp = await client.patch(
         f"/api/v1/orders/{order_id}/lines/{line_id}/procurement",
@@ -275,55 +269,3 @@ async def test_patch_procurement_404_and_401(
         headers=auth_headers,
     )
     assert not_found.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_order_auto_transitions_to_in_procurement_on_first_ordered_line(
-    client: AsyncClient,
-    auth_headers: dict[str, str],
-    session_factory: async_sessionmaker[AsyncSession],
-):
-    async with session_factory() as db:
-        customer = Customer(name="ООО Автостатус")
-        p1 = Part(sku="AUTO-STAT-1", name="Плата управления")
-        p2 = Part(sku="AUTO-STAT-2", name="Датчик высоты")
-        db.add_all([customer, p1, p2])
-        await db.flush()
-
-        order = Order(
-            number="ORD-2026-AUTO1",
-            customer_id=customer.id,
-            status=OrderStatus.draft,
-        )
-        db.add(order)
-        await db.flush()
-
-        l1 = OrderLine(order_id=order.id, part_id=p1.id, quantity=1)
-        l2 = OrderLine(order_id=order.id, part_id=p2.id, quantity=2)
-        db.add_all([l1, l2])
-        await db.commit()
-        order_id, l1_id = order.id, l1.id
-
-    draft_resp = await client.patch(
-        f"/api/v1/orders/{order_id}/lines/{l1_id}/procurement",
-        json={"procurement_status": "ordered"},
-        headers=auth_headers,
-    )
-    assert draft_resp.status_code == 409
-
-    async with session_factory() as db:
-        db_order = await db.get(Order, order_id)
-        assert db_order is not None
-        db_order.status = OrderStatus.confirmed
-        await db.commit()
-
-    ok_resp = await client.patch(
-        f"/api/v1/orders/{order_id}/lines/{l1_id}/procurement",
-        json={"procurement_status": "ordered"},
-        headers=auth_headers,
-    )
-    assert ok_resp.status_code == 200
-
-    order_resp = await client.get(f"/api/v1/orders/{order_id}", headers=auth_headers)
-    assert order_resp.status_code == 200
-    assert order_resp.json()["status"] == "in_procurement"

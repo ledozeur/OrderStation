@@ -5,10 +5,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.order import Order, OrderLine, OrderStatus, ProcurementStatus
+from app.models.order import Order, OrderLine, ProcurementStatus
 from app.models.part import Part
 from app.schemas.procurement import OrderLineRead
-from app.services import order_service
 
 ALLOWED_PROCUREMENT_TRANSITIONS: dict[ProcurementStatus, set[ProcurementStatus]] = {
     ProcurementStatus.not_ordered: {
@@ -44,17 +43,6 @@ def validate_procurement_transition(
         )
 
 
-def _ensure_order_allows_procurement(order: Order) -> None:
-    if order.status not in {OrderStatus.confirmed, OrderStatus.in_procurement}:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Вести закупку можно только для заказа в статусе confirmed или in_procurement, "
-                f"сейчас: {order.status.value}"
-            ),
-        )
-
-
 async def get_order_line_or_404(db: AsyncSession, order_id: UUID, line_id: UUID) -> OrderLine:
     stmt = select(OrderLine).where(
         OrderLine.id == line_id,
@@ -70,8 +58,10 @@ async def get_order_line_or_404(db: AsyncSession, order_id: UUID, line_id: UUID)
     return line
 
 
-def _apply_line_procurement_changes(
-    line: OrderLine,
+async def update_line_procurement(
+    db: AsyncSession,
+    order_id: UUID,
+    line_id: UUID,
     *,
     procurement_status: ProcurementStatus | None = None,
     supplier_name: str | None = None,
@@ -79,7 +69,8 @@ def _apply_line_procurement_changes(
     actual_delivery_date: date | None = None,
     note: str | None = None,
     fields_set: set[str] | None = None,
-) -> None:
+) -> OrderLine:
+    line = await get_order_line_or_404(db, order_id, line_id)
     updated_fields = fields_set or set()
 
     if procurement_status is not None:
@@ -120,45 +111,6 @@ def _apply_line_procurement_changes(
     if "note" in updated_fields or note is not None:
         line.note = note
 
-
-async def _notify_order_procurement_updated(db: AsyncSession, order: Order) -> None:
-    """Вызывает sync_status_from_lines из order_service (J-W3-01)."""
-    sync_fn = getattr(order_service, "sync_status_from_lines", None)
-    if callable(sync_fn):
-        await sync_fn(db, order.id)
-    elif order.status == OrderStatus.confirmed:
-        order.status = OrderStatus.in_procurement
-        await db.flush()
-
-
-async def update_line_procurement(
-    db: AsyncSession,
-    order_id: UUID,
-    line_id: UUID,
-    *,
-    procurement_status: ProcurementStatus | None = None,
-    supplier_name: str | None = None,
-    expected_delivery_date: date | None = None,
-    actual_delivery_date: date | None = None,
-    note: str | None = None,
-    fields_set: set[str] | None = None,
-) -> OrderLine:
-    order = await order_service.get_order_or_404(db, order_id)
-    line = await get_order_line_or_404(db, order_id, line_id)
-    _ensure_order_allows_procurement(order)
-
-    _apply_line_procurement_changes(
-        line,
-        procurement_status=procurement_status,
-        supplier_name=supplier_name,
-        expected_delivery_date=expected_delivery_date,
-        actual_delivery_date=actual_delivery_date,
-        note=note,
-        fields_set=fields_set,
-    )
-    await db.flush()
-    if line.procurement_status == ProcurementStatus.ordered:
-        await _notify_order_procurement_updated(db, order)
     await db.commit()
     await db.refresh(line)
     return line

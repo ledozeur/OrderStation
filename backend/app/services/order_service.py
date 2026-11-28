@@ -189,3 +189,34 @@ async def get_order_with_lines(db: AsyncSession, order_id: UUID) -> Order:
         .execution_options(populate_existing=True)
     )
     return result.scalar_one()
+
+
+async def sync_status_from_lines(db: AsyncSession, order_id: UUID) -> Order:
+    """Приводит статус заказа в соответствие со строками (J-W3-01, K-W3-04).
+
+    - confirmed -> in_procurement, когда хотя бы одна строка ушла в закупку
+      (ordered / in_transit / received);
+    - confirmed / in_procurement -> completed, когда все строки received или cancelled.
+    draft, completed и cancelled не трогаем. Сам вызов транзакцию не коммитит.
+    """
+    order = await get_order_or_404(db, order_id)
+    if order.status not in (OrderStatus.confirmed, OrderStatus.in_procurement):
+        return order
+
+    # В database.py стоит autoflush=False: без flush запрос не увидит
+    # свежих изменений строки, сделанных в этой же транзакции.
+    await db.flush()
+    statuses = (
+        await db.scalars(select(OrderLine.procurement_status).where(OrderLine.order_id == order_id))
+    ).all()
+
+    started = {ProcurementStatus.ordered, ProcurementStatus.in_transit, ProcurementStatus.received}
+    if order.status == OrderStatus.confirmed and any(s in started for s in statuses):
+        order.status = OrderStatus.in_procurement
+
+    done = {ProcurementStatus.received, ProcurementStatus.cancelled}
+    if statuses and all(s in done for s in statuses):
+        order.status = OrderStatus.completed
+
+    await db.flush()
+    return order
